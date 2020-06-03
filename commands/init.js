@@ -177,14 +177,14 @@ module.exports = {
 
       return node;
     });
-    // step 2h: write to .kind.config.yaml
+    // step 2h: write to .devctl-kind.config.yaml
     const kindConfigYaml = yaml.safeDump({
       ...mergedConfig,
       nodes,
     });
 
     await filesystem.writeAsync(
-      resolve(rootDir, ".kind.config.yaml"),
+      resolve(rootDir, ".devctl-kind.config.yaml"),
       kindConfigYaml
     );
 
