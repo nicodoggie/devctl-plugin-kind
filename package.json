@@ -6,8 +6,10 @@
   "license": "MIT",
   "dependencies": {
     "@folder/xdg": "^2.1.1",
+    "@keymetrics/docker-hub-api": "^0.5.3",
     "await-exec": "^0.1.2",
     "axios": "^0.19.2",
+    "bluebird": "^3.7.2",
     "find-up": "^4.1.0",
     "js-yaml": "^3.14.0",
     "lodash": "^4.17.15"

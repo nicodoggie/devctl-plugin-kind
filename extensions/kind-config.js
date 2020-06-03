@@ -1,6 +1,8 @@
 module.exports = (toolbox) => {
   toolbox.kindConfig = {
     defaults: {
+      kind: "Cluster",
+      apiVersion: "kind.x-k8s.io/v1alpha4",
       networking: {
         podSubnet: "10.100.0.0/24",
       },
@@ -21,7 +23,7 @@ module.exports = (toolbox) => {
           extraPortMappings: [
             {
               containerPort: 80,
-              hostPort: 89,
+              hostPort: 80,
               protocol: "TCP",
             },
 
