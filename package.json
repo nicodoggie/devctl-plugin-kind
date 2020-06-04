@@ -13,5 +13,8 @@
     "find-up": "^4.1.0",
     "js-yaml": "^3.14.0",
     "lodash": "^4.17.15"
+  },
+  "devDependencies": {
+    "jest": "^26.0.1"
   }
 }

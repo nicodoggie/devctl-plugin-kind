@@ -1,5 +1,17 @@
-module.exports = (toolbox) => {
-  toolbox.kindConfig = {
+const findUp = require("find-up");
+
+module.exports = async (toolbox) => {
+  const yaml = require("./yaml")(toolbox);
+  const { dirname } = require("path");
+
+  const devctlConfig = await findUp(".devctl.yaml");
+  const rootDir = (() => devctlConfig && dirname(devctlConfig))();
+  const current = await (async () =>
+    devctlConfig && (await yaml.readFile(".devctl-kind.config.yaml")))();
+  const cluster = await (async () =>
+    devctlConfig && (await yaml.readFile(".devctl-kind.yaml")))();
+
+  const kindConfig = {
     defaults: {
       kind: "Cluster",
       apiVersion: "kind.x-k8s.io/v1alpha4",
@@ -41,4 +53,13 @@ module.exports = (toolbox) => {
       ],
     },
   };
+
+  toolbox.kindConfig = {
+    ...kindConfig,
+    rootDir,
+    current: current || {},
+    cluster: cluster || {},
+  };
+
+  return toolbox.kindConfig;
 };

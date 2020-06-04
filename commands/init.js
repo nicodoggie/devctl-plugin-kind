@@ -1,7 +1,7 @@
 const os = require("os");
 const fs = require("fs");
-const yaml = require("js-yaml");
 const get = require("lodash/get");
+const merge = require("lodash/merge");
 const findUp = require("find-up");
 const axios = require("axios");
 const dockerHub = require("@keymetrics/docker-hub-api");
@@ -48,6 +48,28 @@ async function download(url, destination) {
   } catch (e) {
     throw e;
   }
+}
+
+function addNode(role, version, { taints }) {
+  const node = {
+    role,
+    image: `kindest/node:${version}`,
+  };
+
+  if (taints) {
+    const taintConfig = {
+      kind: "InitConfiguration",
+      nodeRegistration: {
+        kubeletExtraArgs: {
+          "node-labels": taints,
+        },
+      },
+    };
+
+    node.kubeadmConfigPatches = [taintConfig];
+  }
+
+  return node;
 }
 
 async function installKind({ filesystem, print, prompt, system: { run } }) {
@@ -125,19 +147,16 @@ async function customizeKind({ prompt }) {
 
   // step 2d: number of control-plane nodes
   // step 2e: number of worker nodes
-  const { image, numControlPlanes, numWorkers, podSubnet } = await prompt.ask([
+  const {
+    kubeVersion,
+    numControlPlanes,
+    numWorkers,
+    podSubnet,
+  } = await prompt.ask([
     {
       type: "select",
-      name: "image",
-      choices: nodeVersions.map(({ name }) => {
-        return {
-          name,
-          value: `kindest/node:${name}`,
-        };
-      }),
-      result() {
-        return this.focused.value;
-      },
+      name: "kubeVersion",
+      choices: nodeVersions.map(({ name }) => name),
     },
     {
       type: "numeral",
@@ -160,95 +179,32 @@ async function customizeKind({ prompt }) {
   ]);
 
   const controlPlaneNodes = [];
-
   for (let idx = 0; idx < numControlPlanes; ++idx) {
     const { taints } = await prompt.ask({
       type: "input",
       name: "taints",
-      message: `Define Control Plane #${
+      message: `Define taints for control-plane node #${
         idx + 1
-      } taints, delimited by commas, leave empty for none`,
+      } (delimit by commas, leave empty for none)`,
       initial: "",
     });
 
-    const node = {
-      image,
-      role: "control-plane",
-      extraPortMappings: [
-        {
-          containerPort: 80,
-          hostPort: 80,
-          protocol: "TCP",
-        },
-
-        {
-          containerPort: 443,
-          hostPort: 443,
-          protocol: "TCP",
-        },
-      ],
-      kubeadmConfigPatches: [
-        {
-          apiVersion: "kubeproxy.config.k8s.io/v1alpha1",
-          kind: "InitConfiguration",
-          mode: "ipvs",
-          ipvs: {
-            strictARP: true,
-          },
-        },
-      ],
-    };
-
-    if (taints) {
-      const taintConfig = {
-        kind: "InitConfiguration",
-        nodeRegistration: {
-          kubeletExtraArgs: {
-            "node-labels": taints,
-          },
-        },
-      };
-
-      node.kubeadmConfigPatches.push(taintConfig);
-    }
-    controlPlaneNodes.push(node);
+    controlPlaneNodes.push(addNode("control-plane", kubeVersion, { taints }));
   }
 
   const workerNodes = [];
-
   for (let idx = 0; idx < numWorkers; ++idx) {
     const { taints } = await prompt.ask({
       type: "input",
       name: "taints",
-      message: `Define Worker node #${
+      message: `Define taints for worker node #${
         idx + 1
-      } taints, delimited by commas, leave empty for none`,
+      } (delimit by commas, leave empty for none)`,
       initial: "",
     });
 
-    const node = {
-      image,
-      role: "worker",
-    };
-
-    if (taints) {
-      const taintConfig = {
-        kind: "InitConfiguration",
-        nodeRegistration: {
-          kubeletExtraArgs: {
-            "node-labels": taints,
-          },
-        },
-      };
-
-      node.kubeadmConfigPatches = [taintConfig];
-    }
-    workerNodes.push(node);
+    workerNodes.push(addNode("worker", kubeVersion, { taints }));
   }
-
-  // step 3a: choose to install helm 2, helm 3 or none
-  // step 3b: choose to install ingress, default to nginx
-  // step 3c: if ingress is installed, choose to install metallb
 
   return {
     networking: { podSubnet },
@@ -256,11 +212,26 @@ async function customizeKind({ prompt }) {
   };
 }
 
+async function installHelm({ prompt }) {
+  const { whichHelm } = await prompt.ask([
+    {
+      type: "select",
+      name: "whichHelm",
+      message: "Which helm version?",
+      choices: ["Helm v2", "Helm v3"],
+    },
+  ]);
+
+  whichHelm;
+}
+async function customizeIngress() {}
+async function customizeLoadBalancer() {}
+
 module.exports = {
   name: "kind-init",
   alias: ["kinit"],
   run: async (toolbox) => {
-    const { print, prompt, kindConfig, filesystem } = toolbox;
+    const { print, prompt, kindConfig, filesystem, yaml } = toolbox;
     const devctlConfig = await findUp(".devctl.yaml", { type: "file" });
 
     if (!devctlConfig) {
@@ -292,10 +263,10 @@ module.exports = {
     const { defaults } = kindConfig;
 
     // step 2b: confirm cluster customization
-    const mergedConfig = {
-      ...defaults,
-      ...(willCustomize ? await customizeKind(toolbox) : {}),
-    };
+    const mergedConfig = merge(
+      willCustomize ? await customizeKind(toolbox) : {},
+      defaults
+    );
     // step 2h: stringify kubeadmConfigPatches
     const nodes = mergedConfig.nodes.map((node) => {
       const patches = get(node, "kubeadmConfigPatches");
@@ -308,16 +279,18 @@ module.exports = {
       return node;
     });
     // step 2h: write to .devctl-kind.config.yaml
-    const kindConfigYaml = yaml.safeDump({
+    await yaml.writeFile(resolve(rootDir, ".devctl-kind.config.yaml"), {
       ...mergedConfig,
       nodes,
     });
 
-    await filesystem.writeAsync(
-      resolve(rootDir, ".devctl-kind.config.yaml"),
-      kindConfigYaml
-    );
+    // step 3d: write to .devctl-kind.yaml
+    await yaml.writeFile(resolve(rootDir, ".devctl-kind.yaml"), {
+      clusterName,
+    });
 
-    // step 3d: write to .kind.bootstrap.yaml
+    // step 3a: choose to install helm 2, helm 3 or none
+    // step 3b: choose to install ingress, default to nginx
+    // step 3c: if ingress is installed, choose to install metallb
   },
 };
