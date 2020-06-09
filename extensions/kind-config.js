@@ -16,7 +16,7 @@ module.exports = async (toolbox) => {
       kind: "Cluster",
       apiVersion: "kind.x-k8s.io/v1alpha4",
       networking: {
-        podSubnet: "10.100.0.0/24",
+        podSubnet: "10.100.0.0/16",
       },
       nodes: [
         {
@@ -25,7 +25,7 @@ module.exports = async (toolbox) => {
           kubeadmConfigPatches: [
             {
               apiVersion: "kubeproxy.config.k8s.io/v1alpha1",
-              kind: "InitConfiguration",
+              kind: "KubeProxyConfiguration",
               mode: "ipvs",
               ipvs: {
                 strictARP: true,
