@@ -1,6 +1,6 @@
 {
   "name": "@nicodoggie/devctl-plugin-kind",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "devctl plugin for kubernetes-in-docker",
   "main": "index.js",
   "license": "MIT",
