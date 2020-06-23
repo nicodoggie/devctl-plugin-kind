@@ -2,15 +2,35 @@ const { resolve } = require("path");
 const { exec } = require("child_process");
 
 module.exports = {
-  name: "kind-up",
+  name: "kind:up",
   alias: ["kup"],
   run: async ({ print, system, kindConfig }) => {
     const { cluster, rootDir } = kindConfig;
-    const { clusterName, bootstrap = [] } = cluster;
+    const { clusterName, bootstrap = [], network } = cluster;
 
     if (!cluster) {
       print.error("devctl-kind is not yet initialized on this cluster.");
       return -1;
+    }
+
+    let hasNetwork = false;
+    try {
+      await system.run(`docker network inspect kind`);
+      hasNetwork = true;
+    } catch (e) {}
+
+    if (!hasNetwork) {
+      const networking = print.spin(`Creating docker network 'kind'.`);
+      try {
+        await system.run(
+          `docker network create --subnet ${network.subnet} kind`
+        );
+        networking.succeed(`Successfully created docker network 'kind'.`);
+      } catch (e) {
+        console.error(e);
+        networking.fail(`Failed to create docker network 'kind'.`);
+        return -1;
+      }
     }
 
     const execing = print.spin(`Creating cluster ${clusterName}`);

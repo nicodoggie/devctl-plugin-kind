@@ -1,5 +1,5 @@
 module.exports = {
-  name: "kind-switch",
+  name: "kind:switch",
   alias: ["kswitch"],
   run: async ({ print }) => {
     // step 1: create kind cluster

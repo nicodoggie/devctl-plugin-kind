@@ -37,10 +37,10 @@ async function customizeIngress() {
 }
 
 module.exports = {
-  name: "kind-init",
+  name: "kind:init",
   alias: ["kinit"],
   run: async (toolbox) => {
-    const { print, prompt, kindConfig, yaml } = toolbox;
+    const { print, prompt, yaml } = toolbox;
     const devctlConfig = await findUp(".devctl.yaml", { type: "file" });
 
     if (!devctlConfig) {

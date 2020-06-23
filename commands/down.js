@@ -1,5 +1,5 @@
 module.exports = {
-  name: "kind-down",
+  name: "kind:down",
   alias: ["kdown"],
   run: async ({ print, system, kindConfig }) => {
     const { cluster, rootDir } = kindConfig;

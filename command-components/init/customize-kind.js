@@ -12,17 +12,6 @@ function addControlPlaneNode(version, { taints }) {
     ],
   };
 
-  node.kubeadmConfigPatches = [
-    {
-      apiVersion: "kubeproxy.config.k8s.io/v1alpha1",
-      kind: "KubeProxyConfiguration",
-      mode: "ipvs",
-      ipvs: {
-        strictARP: true,
-      },
-    },
-  ];
-
   if (taints) {
     const taintConfig = {
       kind: "InitConfiguration",
@@ -47,7 +36,7 @@ function addWorkerNode(version, { taints }) {
 
   if (taints) {
     const taintConfig = {
-      kind: "InitConfiguration",
+      kind: "JoinConfiguration",
       nodeRegistration: {
         kubeletExtraArgs: {
           "node-labels": taints,
