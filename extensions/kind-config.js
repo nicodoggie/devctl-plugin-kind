@@ -1,4 +1,5 @@
 const findUp = require("find-up");
+const { resolve } = require("path");
 
 module.exports = async (toolbox) => {
   const yaml = require("./yaml")(toolbox);
@@ -6,10 +7,14 @@ module.exports = async (toolbox) => {
 
   const devctlConfig = await findUp(".devctl.yaml");
   const rootDir = (() => devctlConfig && dirname(devctlConfig))();
+
+  const isCluster = rootDir ? true : false;
   const current = await (async () =>
-    devctlConfig && (await yaml.readFile(".devctl-kind.config.yaml")))();
+    devctlConfig &&
+    (await yaml.readFile(resolve(rootDir, ".devctl-kind.config.yaml"))))();
   const cluster = await (async () =>
-    devctlConfig && (await yaml.readFile(".devctl-kind.yaml")))();
+    devctlConfig &&
+    (await yaml.readFile(resolve(rootDir, ".devctl-kind.yaml"))))();
 
   const kindConfig = {
     defaults: {
@@ -57,6 +62,7 @@ module.exports = async (toolbox) => {
   toolbox.kindConfig = {
     ...kindConfig,
     rootDir,
+    isCluster,
     current: current || {},
     cluster: cluster || {},
   };

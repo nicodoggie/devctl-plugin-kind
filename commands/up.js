@@ -2,8 +2,8 @@ const { resolve } = require("path");
 const { exec } = require("child_process");
 
 module.exports = {
-  name: "kind:up",
-  alias: ["kup"],
+  name: "kind:up:old",
+  alias: ["kupold"],
   run: async ({ print, system, kindConfig }) => {
     const { cluster, rootDir } = kindConfig;
     const { clusterName, bootstrap = [], network } = cluster;
@@ -40,7 +40,8 @@ module.exports = {
           `kind create cluster --name ${clusterName} --config ${resolve(
             rootDir,
             ".devctl-kind.config.yaml"
-          )}`
+          )}`,
+          { cwd: rootDir }
         )
       );
       execing.succeed(`Cluster kind-${clusterName} created!`);
