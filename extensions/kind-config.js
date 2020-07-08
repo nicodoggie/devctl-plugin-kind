@@ -1,5 +1,6 @@
 const findUp = require("find-up");
 const { resolve } = require("path");
+const getClient = require("../lib/kube");
 
 module.exports = async (toolbox) => {
   const yaml = require("./yaml")(toolbox);
@@ -59,10 +60,16 @@ module.exports = async (toolbox) => {
     },
   };
 
+  let client;
+  try {
+    client = await getClient(`kind-${cluster.clusterName}`);
+  } catch {}
+
   toolbox.kindConfig = {
     ...kindConfig,
     rootDir,
     isCluster,
+    client: isCluster && client,
     current: current || {},
     cluster: cluster || {},
   };

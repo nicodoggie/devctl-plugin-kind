@@ -1,6 +1,9 @@
-const { network } = require("../lib/docker");
-const kind = require("../lib/kind");
 const { spawn } = require("child_process");
+const retry = require("async-retry");
+const { network } = require("../lib/docker");
+const getClient = require("../lib/kube");
+const kind = require("../lib/kind");
+
 const scriptRunner = require("../lib/script-runner");
 
 module.exports = {
@@ -124,7 +127,7 @@ module.exports = {
       try {
         print.info(`Creating kind cluster ${clusterName}...`);
         await createCluster();
-        print.info(`Successfully created cluster '${clusterName}!'`);
+        print.info(`Successfully created cluster '${clusterName}'!`);
       } catch (e) {
         print.error(`Failed to create cluster '${clusterName}'.`);
       }
@@ -134,13 +137,154 @@ module.exports = {
     print.info(`Bootstrapping kind cluster ${clusterName}...`);
     const generatedScripts = scriptRunner(bootstrap, { rootDir });
     let currentType = "";
-    for await (const { type, script, output } of generatedScripts) {
-      if (currentType !== type) {
-        print.info(`Running ${type} scripts...`);
-        currentType = type;
-      }
+    // for await (const { type, script, output } of generatedScripts) {
+    //   print.info("\n---");
+    //   if (currentType !== type) {
+    //     print.info(` Running ${type} scripts...`);
+    //     currentType = type;
+    //   }
 
-      print.info(`Ran \`${script}\``);
+    //   print.info(`﬑ Ran \`${script}\`\n`);
+    // }
+
+    const kubeClient = await getClient(`kind-${clusterName}`, true);
+    // Step 6: Mount host as /repo and expose /repo as a PVC
+
+    // Check whether the PV exists
+    let pvExists = false;
+    try {
+      print.info("Checking for repository mount PersistentVolume...");
+
+      console.log(
+        "repopv",
+        await kubeClient.api.v1.persistentvolumes("repo-pv").get()
+      );
+
+      print.info(`PersistentVolume 'repo-pv' exists.`);
+      pvExists = true;
+    } catch (e) {
+      print.info(`PersistentVolume 'repo-pv' doesn't exist.`);
+    }
+
+    if (!pvExists) {
+      // Create PV if it doesn't exist
+      const spinCreatePV = print.spin(`Creating PersistentVolume 'repo-pv'...`);
+
+      try {
+        await retry(
+          async () =>
+            await kubeClient.api.v1.persistentvolumes.post({
+              body: {
+                apiVersion: "v1",
+                kind: "PersistentVolume",
+                metadata: {
+                  name: "repo-pv",
+                },
+                spec: {
+                  accessModes: ["ReadWriteMany"],
+                  capacity: {
+                    storage: "10Gi",
+                  },
+                  local: {
+                    path: "/repo",
+                  },
+                  nodeAffinity: {
+                    required: {
+                      nodeSelectorTerms: [
+                        {
+                          matchExpressions: [
+                            {
+                              key: "web",
+                              operator: "In",
+                              values: ["1"],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                  storageClassName: "standard",
+                },
+              },
+            }),
+          {
+            retries: 5,
+          }
+        );
+        spinCreatePV.succeed(
+          `Successfully created PersistentVolume 'repo-pv'.`
+        );
+      } catch (e) {
+        spinCreatePV.fail(`Failed to create PersistentVolume 'repo-pv'.`);
+        print.error(e);
+        process.exit(-3);
+      }
+    }
+
+    // // Check whether the PVC exists in the default namespace
+    let pvcExists = false;
+    try {
+      print.info("Checking for repository mount PersistentVolumeClaim...");
+
+      await retry(
+        async () =>
+          await kubeClient.api.v1
+            .namespaces("default")
+            .persistentvolumeclaims("repo-pvc")
+            .get(),
+        {
+          retries: 5,
+          minTimeout: 2000,
+          maxTimeout: 15000,
+        }
+      );
+
+      pvcExists = true;
+      print.info(
+        `PersistentVolumeClaim 'repo-pvc' exists in namespace 'default'.`
+      );
+    } catch (e) {
+      print.info(
+        `PersistentVolumeClaim 'repo-pvc' doesn't exist in namespace 'default'.`
+      );
+    }
+
+    if (!pvcExists) {
+      const spinCreatePVC = print.spin(
+        `Creating PersistentVolume 'repo-pv'...`
+      );
+
+      try {
+        await kubeClient.api.v1
+          .namespaces("default")
+          .persistentvolumeclaims.post({
+            body: {
+              apiVersion: "v1",
+              kind: "PersistentVolumeClaim",
+              metadata: {
+                name: "repo-pvc",
+              },
+              spec: {
+                accessModes: ["ReadWriteMany"],
+                resources: {
+                  requests: {
+                    storage: "10Gi",
+                  },
+                },
+                volumeName: "repo-pv",
+              },
+            },
+          });
+        spinCreatePVC.succeed(
+          `Successfully created PersistentVolumeClaim 'repo-pvc'`
+        );
+      } catch (e) {
+        spinCreatePVC.fail(
+          `Failed to create PersistentVolumeClaim 'repo-pvc'.`
+        );
+        print.error(e);
+        process.exit(-3);
+      }
     }
 
     print.info(`Successfully bootstrapped the ${clusterName} cluster!`);

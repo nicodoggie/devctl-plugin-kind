@@ -7,13 +7,16 @@
   "dependencies": {
     "@folder/xdg": "^2.1.1",
     "@keymetrics/docker-hub-api": "^0.5.3",
+    "async-retry": "^1.3.1",
     "await-exec": "^0.1.2",
     "axios": "^0.19.2",
     "bluebird": "^3.7.2",
     "dockerode": "^3.2.0",
+    "fast-glob": "^3.2.4",
     "find-up": "^4.1.0",
     "ip-cidr": "^2.0.13",
     "js-yaml": "^3.14.0",
+    "kubernetes-client": "^9.0.0",
     "lodash": "^4.17.15",
     "node-docker-api": "^1.1.22"
   },
