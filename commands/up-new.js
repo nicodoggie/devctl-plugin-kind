@@ -137,15 +137,15 @@ module.exports = {
     print.info(`Bootstrapping kind cluster ${clusterName}...`);
     const generatedScripts = scriptRunner(bootstrap, { rootDir });
     let currentType = "";
-    // for await (const { type, script, output } of generatedScripts) {
-    //   print.info("\n---");
-    //   if (currentType !== type) {
-    //     print.info(` Running ${type} scripts...`);
-    //     currentType = type;
-    //   }
+    for await (const { type, script, output } of generatedScripts) {
+      print.info("\n---");
+      if (currentType !== type) {
+        print.info(` Running ${type} scripts...`);
+        currentType = type;
+      }
 
-    //   print.info(`﬑ Ran \`${script}\`\n`);
-    // }
+      print.info(`﬑ Ran \`${script}\`\n`);
+    }
 
     const kubeClient = await getClient(`kind-${clusterName}`, true);
     // Step 6: Mount host as /repo and expose /repo as a PVC
