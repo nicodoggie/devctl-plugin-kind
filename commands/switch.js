@@ -1,77 +1,75 @@
-const fs = require("fs").promises;
-const { dirname } = require("path");
-const glob = require("fast-glob");
-const yaml = require("js-yaml");
-const Promise = require("bluebird");
+const { resolve } = require("path");
 
 module.exports = {
   name: "kind:switch",
   alias: ["kswitch"],
-  run: async ({ print, kindConfig }) => {
+  run: async ({ print, prompt, kindConfig, getProjectConfig, helm }) => {
     const kubeClient = kindConfig.client;
-    const { rootDir } = kindConfig.cluster;
-    const globbedDeploy = await glob(["**/deploy.yaml", "!node_modules"], {
-      cwd: rootDir,
+    const { rootDir, cluster } = kindConfig;
+    const { valuesFile: clusterValuesFiles } = cluster;
+
+    const services = await (async () => {
+      const { services } = await getProjectConfig();
+      return Object.entries(services).filter(([, value]) => "kind" in value);
+    })();
+
+    const { deploy } = await prompt.ask({
+      type: "multiselect",
+      name: "deploy",
+      message: `Select services to deploy (${services.length} items. Press '↑' or '↓' to navigate, 'space' to pick, 'enter' to finalize):`,
+      limit: 10,
+      choices: services.map((s) => s[0]),
+      result(names) {
+        return services
+          .map((s) => s[1])
+          .filter(
+            (service) =>
+              names.includes(service.name) ||
+              service.category == "ingress" ||
+              service.category == "secrets"
+          );
+      },
     });
 
-    // const repoPV = await kubeClient.api.v1.persistentvolumes("repo-pv").get();
-    // console.log(repoPV);
+    const spinHelmDelete = print.spin("Deleting all running deployments...");
 
-    // We're assuming that everything is deployed to the `default` namespace
-    const deployed = await kubeClient.apis.apps.v1
-      .namespaces("default")
-      .deployments.get();
+    try {
+      await helm.deleteAll("default", kubeClient);
+      spinHelmDelete.succeed(`Successfully deleted all running deployments.`);
+    } catch (e) {
+      spinHelmDelete.succeed(`Failed to delete running deployments.`);
+      process.exit(-1);
+    }
 
-    const pvObject = {
-      apiVersion: "v1",
-      kind: "PersistentVolume",
-      metadata: {
-        name: "repo-pv",
-      },
-      spec: {
-        accessModes: ["ReadWriteMany"],
-        capacity: {
-          storage: "10Gi",
+    deploy.forEach(async ({ path, kind }) => {
+      const { values = {}, valuesFile = [] } = kind;
+      const templatePath = resolve(rootDir, path);
+      const template = await helm.getTemplate(templatePath, {
+        values: {
+          ...values,
+          APP_STAGE: "development",
+          COMMIT: "HEAD",
         },
-        local: {
-          path: "/repo",
-        },
-        nodeAffinity: {
-          required: {
-            nodeSelectorTerms: [
-              {
-                matchExpressions: [
-                  {
-                    key: "web",
-                    operator: "In",
-                    values: ["1"],
-                  },
-                ],
-              },
-            ],
-          },
-        },
-        storageClassName: "standard",
-      },
-    };
+        valuesFile: [].concat(clusterValuesFiles, valuesFile),
+        rootDir,
+      });
 
-    // console.log(pvObject);
+      const spinApplyDeployment = print.spin(
+        `Applying helm template in ${path}.`
+      );
+      try {
+        const templatesApplied = await helm.applyTemplates(
+          templatePath,
+          template,
+          "default",
+          kubeClient
+        );
 
-    await kubeClient.api.v1.persistentvolumes.post({ body: pvObject });
-
-    const deployables = (
-      await Promise.map(globbedDeploy, async (file) => {
-        const contents = await fs.readFile(file);
-        const { chart } = yaml.safeLoad(contents);
-
-        if (!chart) {
-          return false;
-        }
-
-        const { hide = false } = chart;
-
-        return !hide && dirname(file);
-      })
-    ).filter((i) => i);
+        spinApplyDeployment.succeed(`Successfully applied template in ${path}`);
+      } catch (e) {
+        spinApplyDeployment.fail(`Failed to apply template in ${path}`);
+        print.error(e);
+      }
+    });
   },
 };
