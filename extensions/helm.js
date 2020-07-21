@@ -1,39 +1,39 @@
-const { template } = require("lodash");
+const { template } = require('lodash');
 
 module.exports = async (toolbox) => {
-  const { spawn } = require("child_process");
-  const { resolve } = require("path");
-  const fs = require("fs").promises;
+  const { spawn } = require('child_process');
+  const { resolve } = require('path');
+  const fs = require('fs').promises;
 
-  const randomstring = require("randomstring");
-  const Promise = require("bluebird");
-  const groupBy = require("lodash/groupBy");
-  const merge = require("lodash/merge");
-  const get = require("lodash/get");
-  const jsYaml = require("js-yaml");
+  const randomstring = require('randomstring');
+  const Promise = require('bluebird');
+  const groupBy = require('lodash/groupBy');
+  const merge = require('lodash/merge');
+  const get = require('lodash/get');
+  const jsYaml = require('js-yaml');
 
   const asyncSpawn = async (command, args, opts) =>
     new Promise((resolve, reject) => {
       const proc = spawn(command, args, opts);
 
       let stdout = Buffer.alloc(0);
-      proc.stdout.on("data", (data) => {
+      proc.stdout.on('data', (data) => {
         stdout = Buffer.concat([stdout, data]);
       });
 
       let stderr = Buffer.alloc(0);
-      proc.stderr.on("data", (data) => {
+      proc.stderr.on('data', (data) => {
         stderr = Buffer.concat([stderr, data]);
       });
 
-      proc.on("close", (code) => {
+      proc.on('close', (code) => {
         if (code !== 0) {
           reject(stderr);
         }
         resolve(stdout);
       });
 
-      proc.on("error", (err) => {
+      proc.on('error', (err) => {
         reject(err);
       });
     });
@@ -82,12 +82,6 @@ module.exports = async (toolbox) => {
           .delete();
       })
     );
-    promises.push(
-      ...secrets.body.items.map((secret) => {
-        const name = secret.metadata.name;
-        return client.api.v1.namespaces(namespace).secrets(name).delete();
-      })
-    );
 
     return Promise.allSettled(promises);
   }
@@ -95,26 +89,26 @@ module.exports = async (toolbox) => {
   async function getTemplate(chartPath, opts) {
     const { values = {}, valuesFile = [], rootDir = process.cwd() } = opts;
 
-    const args = ["template", chartPath];
+    const args = ['template', chartPath];
 
     if (valuesFile.length > 0) {
       valuesFile.forEach((file) => {
-        args.push("-f", resolve(rootDir, file));
+        args.push('-f', resolve(rootDir, file));
       });
     }
 
-    const tmpDir = await fs.mkdtemp("devctl-kind");
+    const tmpDir = await fs.mkdtemp('devctl-kind');
     const tmpFile = resolve(
       tmpDir,
-      `${randomstring.generate({ length: 6, charset: "alphabetic" })}.yaml`
+      `${randomstring.generate({ length: 6, charset: 'alphabetic' })}.yaml`
     );
 
     if (values != {}) {
       await toolbox.yaml.writeFile(tmpFile, values);
-      args.push("-f", tmpFile);
+      args.push('-f', tmpFile);
     }
 
-    const raw = await asyncSpawn("helm", args, { cwd: rootDir });
+    const raw = await asyncSpawn('helm', args, { cwd: rootDir });
 
     // cleanup
     await toolbox.filesystem.removeAsync(tmpDir);
@@ -123,7 +117,7 @@ module.exports = async (toolbox) => {
   }
 
   async function applyDevconfigDeploymentOverrides(template, deployConfig) {
-    if (template.kind !== "Deployment") {
+    if (template.kind !== 'Deployment') {
       throw new Error(`Template passed is not a Deployment`);
     }
 
@@ -133,11 +127,11 @@ module.exports = async (toolbox) => {
     const { spec: podSpec } = template.spec.template;
 
     // Add repo-pvc to the volumes
-    const volumes = get(podSpec, "volumes", []);
+    const volumes = get(podSpec, 'volumes', []);
     volumes.push({
-      name: "repo-pvc",
+      name: 'repo-pvc',
       persistentVolumeClaim: {
-        claimName: "repo-pvc",
+        claimName: 'repo-pvc',
       },
     });
 
@@ -151,16 +145,16 @@ module.exports = async (toolbox) => {
       const containerConfig = deployConfig[container.name];
 
       // Readiness and Liveness probes should not exist in dev
-      if ("readinessProbe" in container) {
+      if ('readinessProbe' in container) {
         delete container.readinessProbe;
       }
 
-      if ("livenessProbe" in container) {
+      if ('livenessProbe' in container) {
         delete container.readinessProbe;
       }
 
-      const volumeMounts = get(container, "volumeMounts", []);
-      const volumes = get(containerConfig, "volumes", [])
+      const volumeMounts = get(container, 'volumeMounts', []);
+      const volumes = get(containerConfig, 'volumes', [])
         .map((volume) => {
           const isValid = volume.match(
             /[0-9a-z\/\._-]+:[0-9a-z\/\._-]+(:[0-9a-z\/\._-]+)?/
@@ -169,13 +163,13 @@ module.exports = async (toolbox) => {
             return false;
           }
 
-          const parts = volume.split(":");
+          const parts = volume.split(':');
           // if volume name is not defined, default to repo-pvc (repo mount)
           const name = (() => {
             if (parts.length === 3) {
               return parts.shift();
             }
-            return "repo-pvc";
+            return 'repo-pvc';
           })();
           const [subPath, mountPath] = parts;
 
@@ -187,15 +181,15 @@ module.exports = async (toolbox) => {
         })
         .filter((i) => i);
 
-      const repoMountPath = get(containerConfig, "repoMountPath");
+      const repoMountPath = get(containerConfig, 'repoMountPath');
       if (repoMountPath) {
         volumeMounts.push({
           mountPath: repoMountPath,
-          name: "repo-pvc",
+          name: 'repo-pvc',
         });
       }
 
-      if ("hostAliases" in containerConfig) {
+      if ('hostAliases' in containerConfig) {
         hostAliases.push(...containerConfig.hostAliases);
         delete containerConfig.hostAliases;
       }
@@ -217,51 +211,57 @@ module.exports = async (toolbox) => {
   async function applyTemplates(
     path,
     templates,
-    namespace = "default",
+    namespace = 'default',
     client
   ) {
-    return Promise.all(
-      templates
-        .map(async (template) => {
-          if (!template) {
-            return false;
-          }
-          const configFilePath = resolve(path, ".devconfig.yaml");
-          const config = await toolbox.yaml.readFile(configFilePath);
+    return Promise.map(templates, async (template) => {
+      if (!template) {
+        return false;
+      }
+      const configFilePath = resolve(path, '.devconfig.yaml');
+      const config = await toolbox.yaml.readFile(configFilePath);
 
-          const { kind: { deployment: deploymentConfig = {} } = {} } = config;
+      const { kind: { deployment: deploymentConfig = {} } = {} } = config;
 
-          switch (template.kind) {
-            case "Deployment":
-              // replace values here
-              const deployTemplate = await applyDevconfigDeploymentOverrides(
-                template,
-                deploymentConfig
-              );
-              return client.apis.apps.v1
-                .namespaces(namespace)
-                .deployments.post({ body: deployTemplate });
-            case "ConfigMap":
-              return client.api.v1
-                .namespaces(namespace)
-                .configmaps.post({ body: template });
-            case "Service":
-              return client.api.v1
-                .namespaces(namespace)
-                .services.post({ body: template });
-            case "Secret":
-              ``;
-              return client.api.v1
-                .namespaces(namespace)
-                .secrets.post({ body: template });
-            case "Ingress":
-              return client.apis.extensions.v1beta1
-                .namespaces(namespace)
-                .ingresses.post({ body: template });
-          }
-        })
-        .filter((i) => i)
-    );
+      try {
+        let response;
+        switch (template.kind) {
+          case 'Deployment':
+            // replace values here
+            const deployTemplate = await applyDevconfigDeploymentOverrides(
+              template,
+              deploymentConfig
+            );
+            response = client.apis.apps.v1
+              .namespaces(namespace)
+              .deployments.post({ body: deployTemplate });
+            break;
+          case 'ConfigMap':
+            response = client.api.v1
+              .namespaces(namespace)
+              .configmaps.post({ body: template });
+            break;
+          case 'Service':
+            response = client.api.v1
+              .namespaces(namespace)
+              .services.post({ body: template });
+            break;
+          case 'Secret':
+            response = await client.api.v1
+              .namespaces(namespace)
+              .secrets.post({ body: template });
+            break;
+          case 'Ingress':
+            response = client.apis.extensions.v1beta1
+              .namespaces(namespace)
+              .ingresses.post({ body: template });
+            break;
+        }
+        return response;
+      } catch (e) {
+        toolbox.print.warning(`${e.message}`);
+      }
+    }).filter((i) => i);
   }
 
   toolbox.helm = {

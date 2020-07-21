@@ -1,8 +1,8 @@
-const { resolve } = require("path");
+const { resolve } = require('path');
 
 module.exports = {
-  name: "kind:switch",
-  alias: ["kswitch"],
+  name: 'kind:switch',
+  alias: ['kswitch'],
   run: async ({ print, prompt, kindConfig, getProjectConfig, helm }) => {
     const kubeClient = kindConfig.client;
     const { rootDir, cluster } = kindConfig;
@@ -10,12 +10,12 @@ module.exports = {
 
     const services = await (async () => {
       const { services } = await getProjectConfig();
-      return Object.entries(services).filter(([, value]) => "kind" in value);
+      return Object.entries(services).filter(([, value]) => 'kind' in value);
     })();
 
     const { deploy } = await prompt.ask({
-      type: "multiselect",
-      name: "deploy",
+      type: 'multiselect',
+      name: 'deploy',
       message: `Select services to deploy (${services.length} items. Press '↑' or '↓' to navigate, 'space' to pick, 'enter' to finalize):`,
       limit: 10,
       choices: services.map((s) => s[0]),
@@ -25,16 +25,16 @@ module.exports = {
           .filter(
             (service) =>
               names.includes(service.name) ||
-              service.category == "ingress" ||
-              service.category == "secrets"
+              service.category == 'ingress' ||
+              service.category == 'secrets'
           );
       },
     });
 
-    const spinHelmDelete = print.spin("Deleting all running deployments...");
+    const spinHelmDelete = print.spin('Deleting all running deployments...');
 
     try {
-      await helm.deleteAll("default", kubeClient);
+      await helm.deleteAll('default', kubeClient);
       spinHelmDelete.succeed(`Successfully deleted all running deployments.`);
     } catch (e) {
       spinHelmDelete.succeed(`Failed to delete running deployments.`);
@@ -47,8 +47,8 @@ module.exports = {
       const template = await helm.getTemplate(templatePath, {
         values: {
           ...values,
-          APP_STAGE: "development",
-          COMMIT: "HEAD",
+          APP_STAGE: 'development',
+          COMMIT: 'HEAD',
         },
         valuesFile: [].concat(clusterValuesFiles, valuesFile),
         rootDir,
@@ -61,7 +61,7 @@ module.exports = {
         const templatesApplied = await helm.applyTemplates(
           templatePath,
           template,
-          "default",
+          'default',
           kubeClient
         );
 
