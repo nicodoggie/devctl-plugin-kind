@@ -34,5 +34,9 @@ Install `@nicodoggie/devctl-plugin-kind` like this:
 yarn global add devctl-plugin-kind@npm:@nicodoggie/devctl-plugin-kind
 ```
 
+Then, in a properly-configured repository, run `devctl kind:up` to create a kind cluster.
+
+To deploy services, run `devctl kind:switch`
+
 Currently, the init command is incomplete, and examples aren't up yet. I'll 
 rectify that in a future commit.
