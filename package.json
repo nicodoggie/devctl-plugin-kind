@@ -22,7 +22,7 @@
     "lodash": "^4.17.19",
     "node-docker-api": "^1.1.22",
     "node-helm": "^0.1.0",
-    "randomstring": "^1.1.5",
+    "randomstring": "^1.3.0",
     "vault-tpl": "https://github.com/SplitmediaLabsLimited/vault-tpl.git"
   },
   "devDependencies": {
