@@ -21,7 +21,7 @@
     "kubernetes-client": "^9.0.0",
     "lodash": "^4.17.19",
     "node-docker-api": "^1.1.22",
-    "node-helm": "^0.1.0",
+    "node-helm": "^1.0.0",
     "randomstring": "^1.1.5",
     "vault-tpl": "https://github.com/SplitmediaLabsLimited/vault-tpl.git"
   },
