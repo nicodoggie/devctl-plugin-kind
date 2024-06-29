@@ -8,7 +8,7 @@
     "@folder/xdg": "^2.1.1",
     "@keymetrics/docker-hub-api": "^0.5.3",
     "async-exec": "^1.1.0",
-    "async-retry": "^1.3.1",
+    "async-retry": "^1.3.3",
     "await-exec": "^0.1.2",
     "axios": "^1.6.4",
     "bluebird": "^3.7.2",
